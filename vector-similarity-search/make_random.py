@@ -29,6 +29,6 @@ records_df = pl.DataFrame(records_numpy)
 db_file_name = f"random_dim{n_dims}.duckdb"
 print(db_file_name)
 con = duckdb.connect(db_file_name)
-con.sql(f"CREATE TABLE records(id VARCHAR PRIMARY KEY, feature FLOAT[{n_dims}])")
+con.sql(f"CREATE TABLE records(id VARCHAR PRIMARY KEY, feature FLOAT4[{n_dims}])")
 con.sql("INSERT INTO records SELECT * FROM records_df")
 print(con.sql("SELECT COUNT(*) FROM records"))
