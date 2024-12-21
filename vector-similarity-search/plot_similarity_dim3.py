@@ -1,6 +1,6 @@
 import duckdb
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 # クエリベクトルを読み込む
 query = np.load("query_dim3.npy")
