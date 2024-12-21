@@ -3,7 +3,7 @@ import sys
 import numpy as np
 from sklearn.preprocessing import normalize
 
-# 次元数コマンドライン引数から取得する
+# 次元数をコマンドライン引数から取得する
 n_dims = int(sys.argv[1])
 
 # ランダムなクエリベクトルを生成する
