@@ -22,8 +22,7 @@ from transformers import AutoModel, AutoProcessor
     help="path to DuckDB file.",
 )
 def main(image_dir, db_file):
-    # モデルをロードする
-    print("Loading model ...")
+    print("Loading model...")
     device = torch.device("cuda")
     model = AutoModel.from_pretrained("jinaai/jina-clip-v2", trust_remote_code=True).to(
         device
@@ -32,69 +31,53 @@ def main(image_dir, db_file):
         "jinaai/jina-clip-v2", trust_remote_code=True
     )
 
-    # DuckDBに接続
-    print(f"Opening database: {db_file}")
+    print("Connecting DB...")
     con = duckdb.connect(db_file)
-
-    # imagesテーブルがなければ作成
-    create_table_sql = """
+    con.execute("""
     CREATE TABLE IF NOT EXISTS images (
         file_path VARCHAR NOT NULL PRIMARY KEY,
         feature FLOAT4[1024] NOT NULL
     )
-    """
-    con.execute(create_table_sql)
+    """)
 
-    # 再帰的に *.jpg を取得
+    print("Finding images...")
     image_files = list(image_dir.rglob("*.jpg"))
     print(f'Found {len(image_files)} images under "{image_dir}"')
 
-    # すでにテーブルに登録済みのファイルパスを一括で取得
-    registered_paths = set(
+    added_paths = set(
         row[0] for row in con.execute("SELECT file_path FROM images").fetchall()
     )
-    print(registered_paths)
 
-    # 画像を1枚ずつ処理
-    for idx, img_path in enumerate(image_files, 1):
-        if str(img_path) in registered_paths:
-            # 既に登録されていればスキップ
-            print(f"[{idx}/{len(image_files)}] Skip (already registered): {img_path}")
+    for index, image_file in enumerate(image_files, 1):
+        if str(image_file) in added_paths:
+            print(f"[{index}/{len(image_files)}] Skip (already added): {image_file}")
             continue
 
         try:
-            image = Image.open(img_path).convert("RGB")
-
-            # CLIPの入力を作成
+            image = Image.open(image_file).convert("RGB")
             inputs = processor(images=image, return_tensors="pt")
             for k, v in inputs.items():
                 inputs[k] = v.to(device)
 
-            # 推論
             with torch.no_grad():
-                embeddings = model.get_image_features(**inputs)
+                features = model.get_image_features(**inputs)
 
-            # 特徴ベクトルを正規化（任意。検索用途によっては正規化した方が扱いやすい）
-            embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
+            features /= features.norm(dim=-1, keepdim=True)
+            features = features[0].float().cpu().numpy()
 
-            # listに変換 (DuckDBに格納しやすい形式にする)
-            feature_vector = embeddings[0].float().cpu().numpy()
-
-            # データベースにINSERT
             con.execute(
-                "INSERT INTO images (file_path, feature) VALUES ($file_path, $feature)",
-                {"file_path": str(img_path), "feature": feature_vector},
+                "INSERT INTO images(file_path, feature) VALUES ($file_path, $feature)",
+                {"file_path": str(image_file), "feature": features},
             )
 
-            print(f"[{idx}/{len(image_files)}] Added: {img_path}")
+            print(f"[{index}/{len(image_files)}] Added: {image_file}")
 
         except Exception as e:
-            print(f"[{idx}/{len(image_files)}] Failed to process {img_path}: {e}")
+            print(f"[{index}/{len(image_files)}] Failed to process: {image_file}: {e}")
 
-    # コミットとクローズ
     con.commit()
     con.close()
-    print("Done.")
+    print("Done")
 
 
 if __name__ == "__main__":
