@@ -5,7 +5,7 @@ import duckdb
 import torch
 
 from PIL import Image
-from transformers import CLIPProcessor, CLIPModel
+from transformers import AutoModel, AutoProcessor
 
 
 @click.command()
@@ -22,35 +22,31 @@ from transformers import CLIPProcessor, CLIPModel
     help="path to DuckDB file.",
 )
 def main(image_dir, db_file):
-    # CLIPモデル・プロセッサのロード
-    model_name = "openai/clip-vit-large-patch14"
-    print(f"Loading CLIP model ({model_name}) ...")
-    model = CLIPModel.from_pretrained(model_name)
-    processor = CLIPProcessor.from_pretrained(model_name)
-
-    # GPUが使える環境であればGPUを利用
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = model.to(device)
+    # モデルをロードする
+    print("Loading model ...")
+    device = torch.device("cuda")
+    model = AutoModel.from_pretrained("jinaai/jina-clip-v2", trust_remote_code=True).to(
+        device
+    )
+    processor = AutoProcessor.from_pretrained(
+        "jinaai/jina-clip-v2", trust_remote_code=True
+    )
 
     # DuckDBに接続
     print(f"Opening database: {db_file}")
     con = duckdb.connect(db_file)
 
     # imagesテーブルがなければ作成
-    # ここでは 768次元の特徴量を FLOAT[] (配列) として保持する例を示す
-    # DuckDBでは厳密にFLOAT[768]と指定できるが、環境によっては一部機能制限があるため
-    # 「FLOAT[] NOT NULL」で代用している
     create_table_sql = """
     CREATE TABLE IF NOT EXISTS images (
         file_path VARCHAR NOT NULL PRIMARY KEY,
-        feature FLOAT4[768] NOT NULL
+        feature FLOAT4[1024] NOT NULL
     )
     """
     con.execute(create_table_sql)
 
     # 再帰的に *.jpg を取得
     image_files = list(image_dir.rglob("*.jpg"))
-    print(image_files)
     print(f'Found {len(image_files)} images under "{image_dir}"')
 
     # すでにテーブルに登録済みのファイルパスを一括で取得
@@ -71,7 +67,6 @@ def main(image_dir, db_file):
 
             # CLIPの入力を作成
             inputs = processor(images=image, return_tensors="pt")
-            # デバイスに転送
             for k, v in inputs.items():
                 inputs[k] = v.to(device)
 
@@ -83,7 +78,7 @@ def main(image_dir, db_file):
             embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
 
             # listに変換 (DuckDBに格納しやすい形式にする)
-            feature_vector = embeddings[0].cpu().numpy()
+            feature_vector = embeddings[0].float().cpu().numpy()
 
             # データベースにINSERT
             con.execute(
