@@ -3,7 +3,6 @@ from pathlib import Path
 import click
 import duckdb
 import torch
-
 from PIL import Image
 from transformers import AutoModel, AutoProcessor
 
@@ -12,7 +11,7 @@ from transformers import AutoModel, AutoProcessor
 @click.option(
     "--image-dir",
     required=True,
-    type=click.Path(path_type=Path, file_okay=False, dir_okay=True),
+    type=click.Path(path_type=Path, file_okay=False, dir_okay=True, exists=True),
     help="path to image directory.",
 )
 @click.option(
