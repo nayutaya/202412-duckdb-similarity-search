@@ -1,32 +1,22 @@
-import os
-import glob
+from pathlib import Path
+# import os
+# import glob
 
 import click
-import duckdb
+
+# import duckdb
 import torch
-from PIL import Image
+
+# from PIL import Image
 from transformers import CLIPProcessor, CLIPModel
 
 
-@click.command()
-@click.option("--image-dir", required=True, type=str, help="画像が格納されたディレクトリのパス")
-@click.option("--db-file", required=True, type=str, help="DuckDBファイルのパス")
-def main(image_dir, db_file):
+def chat_gpt_code():
     """
     指定されたディレクトリ内の *.jpg 画像について、
     CLIPを使い特徴量を取得し、DuckDB の images テーブルに保存する。
     既に登録済みのファイルパスはスキップする。
     """
-
-    # CLIPモデル・プロセッサのロード
-    model_name = "openai/clip-vit-large-patch14"
-    print(f"Loading CLIP model ({model_name}) ...")
-    model = CLIPModel.from_pretrained(model_name)
-    processor = CLIPProcessor.from_pretrained(model_name)
-
-    # GPUが使える環境であればGPUを利用
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = model.to(device)
 
     # DuckDBに接続
     print(f"Opening database: {db_file}")
@@ -50,8 +40,7 @@ def main(image_dir, db_file):
 
     # すでにテーブルに登録済みのファイルパスを一括で取得
     registered_paths = set(
-        row[0]
-        for row in con.execute("SELECT file_path FROM images").fetchall()
+        row[0] for row in con.execute("SELECT file_path FROM images").fetchall()
     )
 
     # 画像を1枚ずつ処理
@@ -95,6 +84,31 @@ def main(image_dir, db_file):
     con.commit()
     con.close()
     print("Done.")
+
+
+@click.command()
+@click.option(
+    "--image-dir",
+    required=True,
+    type=click.Path(path_type=Path, file_okay=False, dir_okay=True),
+    help="path to image directory.",
+)
+@click.option(
+    "--db-file",
+    required=True,
+    type=click.Path(path_type=Path, file_okay=True, dir_okay=False, writable=True),
+    help="path to DuckDB file.",
+)
+def main(image_dir, db_file):
+    # CLIPモデル・プロセッサのロード
+    model_name = "openai/clip-vit-large-patch14"
+    print(f"Loading CLIP model ({model_name}) ...")
+    model = CLIPModel.from_pretrained(model_name)
+    processor = CLIPProcessor.from_pretrained(model_name)
+
+    # GPUが使える環境であればGPUを利用
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = model.to(device)
 
 
 if __name__ == "__main__":

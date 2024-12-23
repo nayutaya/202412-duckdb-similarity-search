@@ -4,7 +4,9 @@ import duckdb
 
 @click.command()
 @click.option("--db-file", required=True, type=str, help="DuckDBファイルのパス")
-@click.option("--image-file", required=True, type=str, help="検索のクエリとなる画像ファイルパス")
+@click.option(
+    "--image-file", required=True, type=str, help="検索のクエリとなる画像ファイルパス"
+)
 def main(db_file, image_file):
     """
     指定された画像ファイルの特徴量と、データベースに登録されている他画像の特徴量との
@@ -20,7 +22,9 @@ def main(db_file, image_file):
     """
     count = con.execute(check_sql, [image_file]).fetchone()[0]
     if count == 0:
-        print(f"Error: file_path='{image_file}' がDBに登録されていません。先にadd_image.pyで登録してください。")
+        print(
+            f"Error: file_path='{image_file}' がDBに登録されていません。先にadd_image.pyで登録してください。"
+        )
         return
 
     # 1つのSQLで「コサイン類似度」を求めてソートし上位10件を取得する
